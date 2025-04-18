@@ -11,14 +11,14 @@ def pick_coeffs(
     idxs_obs: List[int] = [],
     idxs_nas: List[int] = [],
     self_mask: bool = False,
-    struc_mask: np.ndarray = None
+    struc_component: np.ndarray = None
     ) -> np.ndarray:
     n, d = X.shape
     if self_mask: # MNAR specific implementation
         inputs = X
-        if struc_mask is not None:
-            inputs = np.concatenate((inputs, struc_mask), axis=1)
-            d += struc_mask.shape[1]
+        if struc_component is not None:
+            inputs = np.concatenate((inputs, struc_component), axis=1)
+            d += struc_component.shape[1]
         coeffs = np.random.rand(d)
         Wx = inputs * coeffs
         coeffs /= np.std(Wx, 0)
@@ -26,9 +26,9 @@ def pick_coeffs(
         d_obs = len(idxs_obs)
         d_na = len(idxs_nas)
         inputs = X[:, idxs_obs]
-        if struc_mask is not None:
-            inputs = np.concatenate((inputs, struc_mask), axis=1)
-            d_obs += struc_mask.shape[1]
+        if struc_component is not None:
+            inputs = np.concatenate((inputs, struc_component), axis=1)
+            d_obs += struc_component.shape[1]
         coeffs = np.random.rand(d_obs, d_na)
         
         Wx = inputs @ coeffs # multiply so we can get std. dev
@@ -81,19 +81,32 @@ def MCAR_mask(X: np.ndarray,
     if structured == False:
         print("MCAR Unstructured") 
         mask = np.random.rand(*X.shape) < p_miss # (I)
-    else:        
+    else:       
+        n, d = X.shape
+        mask = np.zeros((n, d)).astype(bool)
         if weak and not sequential: #TODO: MCAR Weak + Block (II)
             print("MCAR Weak + Block")
             pass
         elif weak and sequential: #TODO: MCAR Weak + Sequential (IV)
             print("MCAR Weak + Sequential")
-            pass
+            for j in np.arange(d):
+                coeffs, inputs = pick_coeffs(X, [], [j], self_mask=False, struc_component=mask[:, :j]) 
+                #coeffs, inputs = pick_coeffs(mask, np.arange(j), [j], self_mask=False)
+                intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+                ps = expit(inputs @ coeffs + intercepts)
+                ber = np.random.rand(n, 1)
+                mask[:, j] = (ber < ps).flatten()
         elif not weak and not sequential: #TODO: MCAR Strong + Block (III)
             print("MCAR Strong + Block")
             pass
         else: #TODO: MCAR Strong + Sequential (V)
             print("MCAR Strong + Sequential")
-            pass
+            for j in np.arange(d):
+                coeffs, inputs = pick_coeffs(X, [], [j], self_mask=False, struc_component=mask[:, :j]) 
+                #coeffs, inputs = pick_coeffs(mask, np.arange(j), [j], self_mask=False)
+                intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+                ps = (inputs @ coeffs + intercepts) > 0
+                mask[:, j] = ps.flatten()
         
     return mask.astype(float)
     
@@ -103,7 +116,7 @@ def MAR_mask(X: np.ndarray,
               weak: bool=True,
               sequential: bool=False,
               p_obs: float=0.5,
-              n_iters: int= 1) -> np.ndarray:
+              block_size: int= 5) -> np.ndarray:
     
     n, d = X.shape
     mask = np.zeros((n, d)).astype(bool)
@@ -149,7 +162,7 @@ def MAR_mask(X: np.ndarray,
         elif weak and sequential: #TODO: MAR Weak + Sequential (X)
             print("MAR Weak + Sequential")
             for j in idxs_nas:
-                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_mask=mask[:, :j])
+                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=mask[:, :j])
                 intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
                 ps = expit(inputs @ coeffs + intercepts)
                 ber = np.random.rand(n, 1)
@@ -172,7 +185,7 @@ def MAR_mask(X: np.ndarray,
         else: #TODO: MAR Strong + Sequential (XI)
             print("MAR Strong + Sequential")
             for j in idxs_nas:
-                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_mask=mask[:, :j])
+                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=mask[:, :j])
                 intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
                 ps = (inputs @ coeffs + intercepts) > 0
                 mask[:, j] = ps.flatten()
@@ -186,11 +199,12 @@ def simulate_nan(X: np.ndarray,
                  structured: bool=False,
                  weak: bool=True,
                  sequential: bool=False,
-                 p_obs: float=0.5) -> np.ndarray:
+                 p_obs: float=0.5,
+                 block_size: float=5) -> np.ndarray:
     if mecha == "MCAR":
         mask = MCAR_mask(X, p_miss, structured, weak, sequential)
     elif mecha == "MAR":
-        mask = MAR_mask(X, p_miss, structured, weak, sequential, p_obs)
+        mask = MAR_mask(X, p_miss, structured, weak, sequential, p_obs, block_size)
     X_nas = X.copy()
     X_nas[mask.astype(bool)] = np.nan
     #return X_nas
@@ -199,14 +213,14 @@ def simulate_nan(X: np.ndarray,
 np.random.seed(0)
 
 X = np.random.rand(100, 100)
-X = np.array([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], dtype=float)
+#X = np.array([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], dtype=float)
 
-X_nas = simulate_nan(X, 0.5, mecha="MAR", structured=True, weak=True, sequential=True)
+X_nas = simulate_nan(X, 0.5, mecha="MCAR", structured=True, weak=True, sequential=True)
 print("INCL ", X_nas['X_incomp'])
 print("INIT ", X_nas['X_init'])
 print("MASK ", X_nas['mask'])
 
-X_nas = simulate_nan(X, 0.5, mecha="MAR", structured=True, weak=False, sequential=True)
+X_nas = simulate_nan(X, 0.5, mecha="MCAR", structured=True, weak=False, sequential=True)
 print("INCL ", X_nas['X_incomp'])
 print("INIT ", X_nas['X_init'])
 print("MASK ", X_nas['mask'])
