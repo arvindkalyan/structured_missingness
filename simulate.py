@@ -7,9 +7,9 @@ from scipy import optimize
 from scipy.special import expit
 
 def normalize(data, coeffs, tol=1e-10):
-        std = np.std(data@coeffs, axis=0, keepdims=True)
-        std[np.isclose(std, 0.0, atol=tol)] = 1.0
-        return coeffs / std
+    std = np.std(data@coeffs, axis=0, keepdims=True)
+    std[np.isclose(std, 0.0, atol=tol)] = 1.0
+    return coeffs / std
 
 def pick_coeffs(
     X: np.ndarray,
@@ -249,6 +249,115 @@ def MAR_mask(X: np.ndarray,
                 
     return mask.astype(float)
 
+def MNAR_mask_logistic(
+    X: np.ndarray,
+    p_miss: float,
+    structured: bool = False,
+    weak: bool = True,
+    sequential: bool = False,
+    p_obs: float = 0.3,
+    num_blocks: int = 2,
+    exclude_inputs: bool = False
+    ) -> np.ndarray:
+
+    """
+    Missing not at random mechanism with a logistic masking model. It implements two mechanisms:
+    (i) Missing probabilities are selected with a logistic model, taking all variables as inputs. Hence, values that are
+    inputs can also be missing.
+    (ii) Variables are split into a set of intputs for a logistic model, and a set whose missing probabilities are
+    determined by the logistic model. Then inputs are then masked MCAR (hence, missing values from the second set will
+    depend on masked values.
+    In either case, weights are random and the intercept is selected to attain the desired proportion of missing values.
+
+    Args:
+        X : Data for which missing values will be simulated.
+        p : Proportion of missing values to generate for variables which will have missing values.
+        p_params : Proportion of variables that will be used for the logistic masking model (only if exclude_inputs).
+        exclude_inputs : True: mechanism (ii) is used, False: (i)
+
+    Returns:
+        mask : Mask of generated missing values (True if the value is missing).
+
+    """
+
+    n, d = X.shape
+    mask = np.zeros((n, d)).astype(bool)
+
+    d_obs = max(int(p_obs * d), 1) if exclude_inputs else d
+    d_na = (d - d_obs if exclude_inputs else d)
+
+    idxs_obs = (np.random.choice(d, d_obs, replace=False)) if exclude_inputs else np.arange(d) # randomly generate indexes of variables with have no missing values
+    idxs_nas = (np.setdiff1d(np.arange(d), idxs_obs)) if exclude_inputs else np.arange(d) # indexes of variables that will have missing values
+
+    if structured == False:
+        if weak: # MNAR Probabilistic (XII)
+            #print("MNAR Probabilistic")
+            coeffs, inputs = pick_coeffs(X, idxs_obs, idxs_nas)
+            intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+            ps = expit(X[:, idxs_obs] @ coeffs + intercepts)
+            ber = np.random.rand(n, d_na)
+            mask[:, idxs_nas] = ber < ps
+        else: # TODO: MNAR Deterministic (XIII)
+            #print("MNAR Deterministic")
+            coeffs, inputs = pick_coeffs(X, idxs_obs, idxs_nas)
+            intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+            ps = (X[:, idxs_obs] @ coeffs + intercepts) > 0 #TODO: check signs on ps
+            mask[:, idxs_nas] = ps
+    else:
+
+        if weak and not sequential: #TODO: MNAR Weak + Block (XIV)
+            #print("MNAR Weak + Block")
+            block_size = (d // num_blocks) + 1
+            curr_block = -1
+            latent_effects = None
+            for j in idxs_nas:
+                block = j // block_size
+                if block != curr_block:
+                    curr_block = block
+                    latent_effects = np.random.randn(n, 1) # latent variable containing effects from [block_size] elements
+                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=latent_effects)
+                intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+                ps = expit(inputs @ coeffs + intercepts)
+                ber = np.random.rand(n, 1)
+                mask[:, j] = (ber < ps).flatten()
+
+        elif weak and sequential: #TODO: MNAR Weak + Sequential (XVI)
+            #print("MNAR Weak + Sequential")
+            for j in idxs_nas:
+                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=mask[:, :j])
+                intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+                ps = expit(inputs @ coeffs + intercepts)
+                ber = np.random.rand(n, 1)
+                mask[:, j] = (ber < ps).flatten()
+
+        elif not weak and not sequential: #TODO: MNAR Strong + Block (XV)
+            #print("MNAR Strong + Block")
+            block_size = (d // num_blocks) + 1
+            curr_block = -1
+            latent_effects = None
+            for j in idxs_nas:
+                block = j // block_size
+                if block != curr_block:
+                    curr_block = block
+                    latent_effects = np.random.randn(n, 1) # latent variable containing effects from [block_size] elements
+                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=latent_effects)
+                intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+                ps = (inputs @ coeffs + intercepts) > 0
+                mask[:, j] = ps.flatten()
+            
+        else: #TODO: MNAR Strong + Sequential (XVII)
+            #print("MNAR Strong + Sequential")
+            for j in idxs_nas:
+                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=mask[:, :j])
+                intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+                ps = (inputs @ coeffs + intercepts) > 0
+                mask[:, j] = ps.flatten()
+
+    if exclude_inputs:
+        mask[:, idxs_obs] = np.random.rand(n, d_obs) < p_miss
+
+    return mask
+
 
 def simulate_nan(X: np.ndarray,
                  p_miss: float,
@@ -258,11 +367,13 @@ def simulate_nan(X: np.ndarray,
                  weak: bool=True,
                  sequential: bool=False,
                  p_obs: float=0.5,
-                 num_blocks: int=1) -> np.ndarray:
+                 num_blocks: int=2,
+                 exclude_inputs: bool=False
+                 ) -> np.ndarray:
     if mecha == "MAR":
         mask = MAR_mask(X, p_miss, structured, weak, sequential, p_obs, num_blocks)
     elif mecha == "MNAR" and opt == "logistic":
-        pass
+        mask = MNAR_mask_logistic(X, p_miss, structured, weak, sequential, p_obs, num_blocks, exclude_inputs)
     else:
         mask = MCAR_mask(X, p_miss, structured, weak, sequential, num_blocks)
     X_nas = X.copy()
@@ -272,10 +383,35 @@ def simulate_nan(X: np.ndarray,
 
 #np.random.seed(0)
 
-#X = np.random.rand(100, 100)
-#X = np.array([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], dtype=float)
+# X = np.random.rand(100, 100)
+# #X = np.array([[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], dtype=float)
 
-# X_nas = simulate_nan(X, 0.5, mecha="MAR", structured=True, weak=True, sequential=False)
+# X_nas = simulate_nan(X, p_miss=0.5, mecha="MNAR", structured=False, weak=True, sequential=False)
+# print("INCL ", X_nas['X_incomp'])
+# print("INIT ", X_nas['X_init'])
+# print("MASK ", X_nas['mask'])
+
+# X_nas = simulate_nan(X, p_miss=0.5, mecha="MNAR", structured=False, weak=False, sequential=False)
+# print("INCL ", X_nas['X_incomp'])
+# print("INIT ", X_nas['X_init'])
+# print("MASK ", X_nas['mask'])
+
+# X_nas = simulate_nan(X, p_miss=0.5, mecha="MNAR", structured=True, weak=True, sequential=False)
+# print("INCL ", X_nas['X_incomp'])
+# print("INIT ", X_nas['X_init'])
+# print("MASK ", X_nas['mask'])
+
+# X_nas = simulate_nan(X, p_miss=0.5, mecha="MNAR", structured=True, weak=True, sequential=True)
+# print("INCL ", X_nas['X_incomp'])
+# print("INIT ", X_nas['X_init'])
+# print("MASK ", X_nas['mask'])
+
+# X_nas = simulate_nan(X, p_miss=0.5, mecha="MNAR", structured=True, weak=False, sequential=False)
+# print("INCL ", X_nas['X_incomp'])
+# print("INIT ", X_nas['X_init'])
+# print("MASK ", X_nas['mask'])
+
+# X_nas = simulate_nan(X, p_miss=0.5, mecha="MNAR", structured=True, weak=False, sequential=True)
 # print("INCL ", X_nas['X_incomp'])
 # print("INIT ", X_nas['X_init'])
 # print("MASK ", X_nas['mask'])
