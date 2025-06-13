@@ -9,6 +9,9 @@ from scipy.special import expit
 # utils
 from sim_utils import block_assignment
 from sim_utils import normalize
+from sim_utils import random_flip
+from sim_utils import round_near_zero
+from sim_utils import random_negate
 
 def pick_coeffs(
     X: np.ndarray,
@@ -39,7 +42,7 @@ def pick_coeffs(
             n, d = X.shape
             d_obs = len(idxs_obs) 
             inputs = X[:, idxs_obs]
-            coeffs = np.random.rand(d_obs, d_na)   
+            coeffs = np.random.rand(d_obs, d_na)
             coeffs = normalize(inputs, coeffs)
         if struc_component is not None:
             struc_coeffs = np.random.rand(struc_component.shape[1], d_na)
@@ -84,14 +87,13 @@ def fit_intercepts(
                 def f(x: np.ndarray) -> np.ndarray:
                     return expit(np.dot(X, coeffs[:, j])+x).mean().item() - p_miss
                 intercepts[j] = optimize.bisect(f, -150, 150) 
-                print(expit(np.dot(X, coeffs[:, j])+intercepts[j]).mean().item())
+                # expit(np.dot(X, coeffs[:, j])+intercepts[j]).mean().item())
         else: # deterministic
             for j in range(d_na):
                 def f(x: np.ndarray) -> np.ndarray:
-                    return ((np.dot(X, coeffs[:, j])+x) > 0).mean().item() - p_miss
-                # intercepts[j] = optimize.bisect(f, -150, 150) 
-                intercepts[j] = -np.quantile(np.dot(X, coeffs[:, j]), 1-p_miss)
-                print( ((np.dot(X, coeffs[:, j])+intercepts[j]) > 0).mean().item() )
+                    return ((np.dot(X, coeffs[:, j])+x) >= 0).mean().item() - p_miss
+                intercepts[j] = optimize.bisect(f, -150, 150) 
+                # intercepts[j] = -np.quantile(np.dot(X, coeffs[:, j]), 1-p_miss)
     return intercepts
  
 def create_block_effects(
@@ -156,9 +158,9 @@ def MCAR_mask(X: np.ndarray,
                 if block != curr_block:
                     curr_block = block
                     latent_effects = np.random.randn(n, 1) # latent variable containing effects from [block_size] elements
-                coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=latent_effects, self_mask=False)
+                coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=(latent_effects), self_mask=False)
                 intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
-                ps = (inputs @ coeffs + intercepts) > 0
+                ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
                 mask[:, j] = ps.flatten()
         
         else: 
@@ -166,16 +168,19 @@ def MCAR_mask(X: np.ndarray,
             for j in np.arange(d): # TODO: spread out the missingness!
                 if j == 0:
                     mask[:, j] = np.random.rand(mask.shape[0]) < p_miss
-                else:
-                    print(mask[:, :j].shape)
-                    coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=mask[:, :j], self_mask=False) 
-                    intercepts = fit_intercepts(inputs, coeffs, p_miss+0.4, weak)
+                else:              
+                    # coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=mask[:, :j], self_mask=False) 
+                    coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=(mask[:, :j]), self_mask=False) 
+                    intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
+                    # print((round_near_zero(inputs @ coeffs + intercepts) >= 0).mean().item())
                     # print("inputs ", inputs)
                     # print("coeffs ", coeffs)
                     # print("intercepts ", intercepts)
+                    # # print("original intercepts ", intercepts-1e-5)
                     # print("ic ", inputs@coeffs)
-                    # print("ici ", inputs@coeffs+intercepts)
-                    ps = (inputs @ coeffs + intercepts) > 0
+                    # print("ici ", (inputs@coeffs)+intercepts)
+                    # print("rounded ici ", round_near_zero(inputs @ coeffs + intercepts))
+                    ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
                     # print("ps ", ps)
                     mask[:, j] = ps.flatten()
         
@@ -210,7 +215,7 @@ def MAR_mask(X: np.ndarray,
             #print("MAR Deterministic")
             coeffs, inputs = pick_coeffs(X, idxs_obs, idxs_nas)
             intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
-            ps = (X[:, idxs_obs] @ coeffs + intercepts) > 0
+            ps = (X[:, idxs_obs] @ coeffs + intercepts) >= 0
             mask[:, idxs_nas] = ps
     else:
 
@@ -249,17 +254,17 @@ def MAR_mask(X: np.ndarray,
                 if block != curr_block:
                     curr_block = block
                     latent_effects = np.random.randn(n, 1) # latent variable containing effects from [block_size] elements
-                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=latent_effects)
+                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=(latent_effects))
                 intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
-                ps = (inputs @ coeffs + intercepts) > 0
+                ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
                 mask[:, j] = ps.flatten()
             
         else:
             #print("MAR Strong + Sequential")
             for j in idxs_nas:
-                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=mask[:, :j])
+                coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=(mask[:, :j]))
                 intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
-                ps = (inputs @ coeffs + intercepts) > 0
+                ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
                 mask[:, j] = ps.flatten()
                 
     return mask.astype(float)
@@ -316,7 +321,7 @@ def MNAR_mask_logistic(
             #print("MNAR Deterministic")
             coeffs, inputs = pick_coeffs(X, idxs_obs, idxs_nas)
             intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
-            ps = (X[:, idxs_obs] @ coeffs + intercepts) > 0
+            ps = (X[:, idxs_obs] @ coeffs + intercepts) >= 0
             mask[:, idxs_nas] = ps
         
         if exclude_inputs:
@@ -365,11 +370,11 @@ def MNAR_mask_logistic(
                     curr_block = block
                     latent_effects = np.random.randn(n, 1) # latent variable containing effects from [block_size] elements
                 if j in idxs_nas: # this is always true for exclude_inputs = False
-                    coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=latent_effects)
+                    coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=(latent_effects))
                 else: #M_obs terms in exclude_inputs = True case
-                    coeffs, inputs = pick_coeffs(None, idxs_obs=[], idxs_nas=[j], struc_component=latent_effects, self_mask=False)
+                    coeffs, inputs = pick_coeffs(None, idxs_obs=[], idxs_nas=[j], struc_component=(latent_effects), self_mask=False)
                 intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
-                ps = (inputs @ coeffs + intercepts) > 0
+                ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
                 mask[:, j] = ps.flatten()
             
         else:
@@ -379,11 +384,19 @@ def MNAR_mask_logistic(
                     mask[:, j] = np.random.rand(mask.shape[0]) < p_miss
                 else:
                     if j in idxs_nas: # this is always true for exclude_inputs=False
-                        coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=mask[:, :j])
+                        coeffs, inputs = pick_coeffs(X, idxs_obs, [j], self_mask=False, struc_component=(mask[:, :j]))
                     else: # M_obs terms
-                        coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], self_mask=False, struc_component=mask[:, :j])
+                        coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], self_mask=False, struc_component=(mask[:, :j]))
                     intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
-                    ps = (inputs @ coeffs + intercepts) > 0
+                    ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
+                    # print((round_near_zero(inputs @ coeffs + intercepts) > 0).mean().item())
+                    # print("inputs ", inputs)
+                    # print("coeffs ", coeffs)
+                    # print("intercepts ", intercepts)
+                    # # print("original intercepts ", intercepts-1e-5)
+                    # print("ic ", inputs@coeffs)
+                    # print("ici ", (inputs@coeffs)+intercepts)
+                    # print("rounded ici ", round_near_zero(inputs @ coeffs + intercepts))
                     mask[:, j] = ps.flatten()
 
     return mask
