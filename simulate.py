@@ -52,10 +52,6 @@ def pick_coeffs(
             else:
                 inputs = struc_component
                 coeffs = struc_coeffs
-                #print("inputs ", inputs)
-                #print("inputs shape ", inputs.shape)
-    #print("final inputs ", inputs)
-    #print("final coeffs", coeffs)
     return coeffs, inputs
 
 def fit_intercepts(
@@ -66,7 +62,7 @@ def fit_intercepts(
         self_mask: bool = False
         ) -> np.ndarray:
     
-    if self_mask:
+    if self_mask: # MNAR specific implementation
         d = len(coeffs)
         intercepts = np.zeros(d)
         if weak: # probabilistic
@@ -87,29 +83,13 @@ def fit_intercepts(
                 def f(x: np.ndarray) -> np.ndarray:
                     return expit(np.dot(X, coeffs[:, j])+x).mean().item() - p_miss
                 intercepts[j] = optimize.bisect(f, -150, 150) 
-                # expit(np.dot(X, coeffs[:, j])+intercepts[j]).mean().item())
         else: # deterministic
             for j in range(d_na):
                 def f(x: np.ndarray) -> np.ndarray:
                     return ((np.dot(X, coeffs[:, j])+x) >= 0).mean().item() - p_miss
                 intercepts[j] = optimize.bisect(f, -150, 150) 
-                # intercepts[j] = -np.quantile(np.dot(X, coeffs[:, j]), 1-p_miss)
     return intercepts
  
-def create_block_effects(
-        block_size: int,
-        n: int) -> np.ndarray:
-    
-    num_effects = int((block_size-1)*(block_size)/2)
-    A = np.random.rand(num_effects, num_effects) # covariance matrix
-    cov = np.dot(A, A.T) # covariance matrix
-    mean = np.zeros(num_effects) # mean vector
-    block_effect = np.random.multivariate_normal(mean=mean, cov=cov, size=n) # latent variable containing effects from neighboring [block_size] elements
-    mat = np.zeros((block_size, block_size-1, n))
-    mat[np.triu_indices(block_size-1)] = block_effect.T
-    mat[np.tril_indices(block_size, k=-1)] = np.transpose(mat, (1, 0, 2))[np.tril_indices(block_size-1)]
-    return mat
-
 def MCAR_mask(X: np.ndarray,
               p_miss: float,
               structured: bool=False,
@@ -169,17 +149,8 @@ def MCAR_mask(X: np.ndarray,
                 if j == 0:
                     mask[:, j] = np.random.rand(mask.shape[0]) < p_miss
                 else:              
-                    # coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=mask[:, :j], self_mask=False) 
                     coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=(mask[:, :j]), self_mask=False) 
                     intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
-                    # print((round_near_zero(inputs @ coeffs + intercepts) >= 0).mean().item())
-                    # print("inputs ", inputs)
-                    # print("coeffs ", coeffs)
-                    # print("intercepts ", intercepts)
-                    # # print("original intercepts ", intercepts-1e-5)
-                    # print("ic ", inputs@coeffs)
-                    # print("ici ", (inputs@coeffs)+intercepts)
-                    # print("rounded ici ", round_near_zero(inputs @ coeffs + intercepts))
                     ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
                     # print("ps ", ps)
                     mask[:, j] = ps.flatten()
@@ -277,7 +248,7 @@ def MNAR_mask_logistic(
     sequential: bool = False,
     p_obs: float = 0.3,
     num_blocks: int = 2,
-    exclude_inputs: bool = False
+    exclude_inputs: bool = True
     ) -> np.ndarray:
 
     """
@@ -389,14 +360,6 @@ def MNAR_mask_logistic(
                         coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], self_mask=False, struc_component=(mask[:, :j]))
                     intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
                     ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
-                    # print((round_near_zero(inputs @ coeffs + intercepts) > 0).mean().item())
-                    # print("inputs ", inputs)
-                    # print("coeffs ", coeffs)
-                    # print("intercepts ", intercepts)
-                    # # print("original intercepts ", intercepts-1e-5)
-                    # print("ic ", inputs@coeffs)
-                    # print("ici ", (inputs@coeffs)+intercepts)
-                    # print("rounded ici ", round_near_zero(inputs @ coeffs + intercepts))
                     mask[:, j] = ps.flatten()
 
     return mask
