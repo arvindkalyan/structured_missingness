@@ -69,21 +69,21 @@ def round_near_zero(arr: np.ndarray, tolerance: float = -1e-11) -> np.ndarray:
     return arr
 
 def generate_coeffs(shape,
-                    dist,
-                    *kwargs):
+                    dist: str="uniform",
+                    arg0: float=0.0,
+                    arg1: float=1.0):
     if dist == "uniform":
-        min = kwargs[0]
-        max = kwargs[1]
-        if len(kwargs) != 2:
-            raise ValueError("Specify two minimum and maximum endpoints.")
+        min = arg0
+        max = arg1
         if min >= max:
             raise ValueError("Minimum and maximum endpoints mismatched.")
-        return np.random.rand(*shape) * (max-min) + min
+        if type(shape) == tuple:
+            return np.random.rand(*shape) * (max-min) + min
+        else:
+            return np.random.rand(shape) * (max- min) + min
     elif dist == "normal":
-        mean = kwargs[0]
-        std = kwargs[1]
-        if len(kwargs) != 2:
-            raise ValueError("Specify two minimum and maximum endpoints.")
+        mean = arg0
+        std = arg1
         return np.random.normal(loc=mean, scale=std, size=shape)
     else:
         raise TypeError("Unrecognized coefficient distribution.")
