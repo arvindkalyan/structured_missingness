@@ -398,7 +398,6 @@ def simulate_nan(X: np.ndarray,
         mask = MCAR_mask(X, p_miss, structured, weak, sequential, num_blocks, dist, arg0, arg1)
     X_nas = X.copy()
     X_nas[mask.astype(bool)] = np.nan
-    #return X_nas
     return {'X_init': X.astype(np.float64), 'X_incomp': X_nas.astype(np.float64), 'mask': mask}
 
 #np.random.seed(0)
