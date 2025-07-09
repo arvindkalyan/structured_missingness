@@ -85,6 +85,9 @@ def generate_coeffs(shape,
         mean = arg0
         std = arg1
         return np.random.normal(loc=mean, scale=std, size=shape)
+    elif dist == "betas":
+        beta = next(arg0) if hasattr(arg0, '__next__') else arg0
+        return np.full(shape, beta)
     else:
         raise TypeError("Unrecognized coefficient distribution.")
         

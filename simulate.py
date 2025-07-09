@@ -119,6 +119,8 @@ def MCAR_mask(X: np.ndarray,
                     curr_block = block
                     latent_effects = np.random.randn(n, 1) # latent variable containing effects from [block_size] elements
                 coeffs, inputs = pick_coeffs(X=None, idxs_obs = None, idxs_nas=[j], struc_component=latent_effects, self_mask=False, dist=dist, arg0=arg0, arg1=arg1)
+                print("coeffs ", coeffs)
+                # print("dist ", dist, " arg0 ", arg0, " arg1 ", arg1)
                 intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
                 ps = expit(inputs @ coeffs + intercepts)
                 ber = np.random.rand(n, 1)
