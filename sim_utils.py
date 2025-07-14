@@ -63,9 +63,12 @@ def random_negate(mask: np.ndarray, flip_intensity: float = 0.5) -> np.ndarray:
     # print("actual: ", B)
     return np.where(flip_mask, -mask, mask)
 
-def round_near_zero(arr: np.ndarray, tolerance: float = -1e-11) -> np.ndarray:
+def round_near_zero(arr: np.ndarray, tolerance: float = 1e-11) -> np.ndarray:
+    assert(tolerance>0)
     if (arr < 0).all():
-        arr[(arr) > tolerance] = 0.0
+        arr[(arr) > -tolerance] = 0.0
+    if (arr > 0).all():
+        arr[(arr) < tolerance] = -tolerance
     return arr
 
 def generate_coeffs(shape,

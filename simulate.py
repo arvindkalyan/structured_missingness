@@ -119,8 +119,6 @@ def MCAR_mask(X: np.ndarray,
                     curr_block = block
                     latent_effects = np.random.randn(n, 1) # latent variable containing effects from [block_size] elements
                 coeffs, inputs = pick_coeffs(X=None, idxs_obs = None, idxs_nas=[j], struc_component=latent_effects, self_mask=False, dist=dist, arg0=arg0, arg1=arg1)
-                print("coeffs ", coeffs)
-                # print("dist ", dist, " arg0 ", arg0, " arg1 ", arg1)
                 intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
                 ps = expit(inputs @ coeffs + intercepts)
                 ber = np.random.rand(n, 1)
@@ -156,10 +154,10 @@ def MCAR_mask(X: np.ndarray,
                 if j == 0:
                     mask[:, j] = np.random.rand(mask.shape[0]) < p_miss
                 else:              
-                    coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=(mask[:, :j]), self_mask=False, dist=dist, arg0=arg0, arg1=arg1) 
+                    # coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=(mask[:, :j]), self_mask=False, dist=dist, arg0=arg0, arg1=arg1) 
+                    coeffs, inputs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], struc_component=(mask[:, :j]), self_mask=False, dist=dist, arg0=arg0, arg1=arg1)   
                     intercepts = fit_intercepts(inputs, coeffs, p_miss, weak)
                     ps = round_near_zero(inputs @ coeffs + intercepts) >= 0
-                    # print("ps ", ps)
                     mask[:, j] = ps.flatten()
         
     return mask.astype(float)
