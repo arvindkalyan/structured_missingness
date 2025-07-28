@@ -26,20 +26,7 @@ def pick_coeffs(
     ) -> np.ndarray:
 
     if self_mask: # MNAR specific implementation
-        if X is not None:
-            n, d = X.shape
-            inputs = X
-            coeffs = generate_coeffs(d, coeff_dist, coeff_arg0, coeff_arg1)
-            Wx = inputs * coeffs
-            coeffs /= np.std(Wx, 0)
-        if latent_component is not None:
-            struc_coeffs = generate_coeffs(latent_component.shape[1], coeff_dist, coeff_arg0, coeff_arg1)
-            if X is not None: 
-                inputs = np.concatenate((inputs, latent_component), axis=1)
-                coeffs = np.concatenate((coeffs, struc_coeffs), axis=0)
-            else:
-                inputs = latent_component
-                coeffs = struc_coeffs  
+        pass
     else:
         d_na = len(idxs_nas)
         if X is not None:
@@ -70,18 +57,7 @@ def fit_intercepts(
         ) -> np.ndarray:
     
     if self_mask: # MNAR specific implementation
-        d = 1
-        intercepts = np.zeros(d)
-        if weak: # probabilistic
-            for j in range(d):
-                def f(x: np.ndarray) -> np.ndarray:
-                    return expit(inputs_and_coeffs+x).mean().item() - p_miss # should = 0
-                intercepts[j] = optimize.bisect(f, -150, 150) 
-        else: # deterministic
-            for j in range(d):
-                def f(x: np.ndarray) -> np.ndarray:
-                    return ((inputs_and_coeffs+x) > 0).mean().item() - p_miss # should = 0
-                intercepts[j] = optimize.bisect(f, -150, 150) 
+        pass
     else:
         if weak: # probabilistic 
             def f(x: np.ndarray) -> np.ndarray:
@@ -103,14 +79,14 @@ def MCAR_mask(X: np.ndarray,
               coeff_arg0: float = 0.0,
               coeff_arg1: float = 1.0) -> np.ndarray:
     if structured == False:
-        #print("MCAR Unstructured") 
+        # MCAR Unstructured  
         mask = np.random.rand(*X.shape) < p_miss # (I)
     else:       
         n, d = X.shape
         mask = np.zeros((n, d)).astype(bool)
         
         if weak and not sequential:
-            #print("MCAR Weak + Block")
+            # MCAR Weak + Block 
             if cov is None:
                 cov = generate_random_cov(d)
             mean = np.zeros(d)
@@ -123,7 +99,7 @@ def MCAR_mask(X: np.ndarray,
                 mask[:, j] = (ber < ps).flatten()
         
         elif weak and sequential: 
-            #print("MCAR Weak + Sequential")
+            # MCAR Weak + Sequential 
             for j in np.arange(d):
                 inputs_and_coeffs = pick_coeffs(X=None, idxs_obs=None, idxs_nas=[j], mask_component=mask[:, :j], self_mask=False, coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)  # how does this handle the first index? (it does MCAR!)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -132,7 +108,7 @@ def MCAR_mask(X: np.ndarray,
                 mask[:, j] = (ber < ps).flatten()
         
         elif not weak and not sequential:
-            #print("MCAR Strong + Block")
+            # MCAR Strong + Block 
             if cov is None:
                 cov = generate_random_cov(d)
             mean = np.zeros(d)
@@ -144,7 +120,7 @@ def MCAR_mask(X: np.ndarray,
                 mask[:, j] = ps.flatten()
         
         else: 
-            #print("MCAR Strong + Sequential")
+            # MCAR Strong + Sequential 
             for j in np.arange(d): # TODO: spread out the missingness!
                 if j == 0:
                     mask[:, j] = np.random.rand(mask.shape[0]) < p_miss
@@ -165,7 +141,8 @@ def MAR_mask(X: np.ndarray,
               cov: float=None,
               coeff_dist: str = "uniform",
               coeff_arg0: float = 0.0,
-              coeff_arg1: float = 1.0) -> np.ndarray:
+              coeff_arg1: float = 1.0,
+              idxs_obs: np.ndarray = None) -> np.ndarray:
     
     n, d = X.shape
     mask = np.zeros((n, d)).astype(bool)
@@ -173,12 +150,14 @@ def MAR_mask(X: np.ndarray,
     d_obs = max(int(p_obs * d), 1)  # number of variables that will have no missing values (at least one variable)
     d_na = d - d_obs  # number of variables that will have missing values
 
-    idxs_obs = np.random.choice(d, d_obs, replace=False) # randomly generate indexes of variables with have no missing values
+    if idxs_obs is None:
+        idxs_obs = np.random.choice(d, d_obs, replace=False) # randomly generate indexes of variables with have no missing values
+
     idxs_nas = np.setdiff1d(np.arange(d), idxs_obs) # indexes of variables that will have missing values
-    
+
     if structured == False:
         if weak: # MAR Probabilistic (VI)
-            #print("MAR Probabilistic")
+            # MAR Probabilistic 
             for j in idxs_nas:
                 inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -186,7 +165,7 @@ def MAR_mask(X: np.ndarray,
                 ber = np.random.rand(n, 1)
                 mask[:, j] = (ber < ps).flatten()
         else:
-            #print("MAR Deterministic")
+            # MAR Deterministic 
             for j in idxs_nas:
                 inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -195,7 +174,7 @@ def MAR_mask(X: np.ndarray,
     else:
 
         if weak and not sequential:
-            #print("MAR Weak + Block")
+            # MAR Weak + Block 
             if cov is None:
                 cov = generate_random_cov(d)
             mean = np.zeros(d)
@@ -208,7 +187,7 @@ def MAR_mask(X: np.ndarray,
                 mask[:, j] = (ber < ps).flatten()
 
         elif weak and sequential:
-            #print("MAR Weak + Sequential")
+            # MAR Weak + Sequential 
             for j in idxs_nas:
                 inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], self_mask=False, mask_component=mask[:, :j], coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -217,7 +196,7 @@ def MAR_mask(X: np.ndarray,
                 mask[:, j] = (ber < ps).flatten()
 
         elif not weak and not sequential:
-            #print("MAR Strong + Block")
+            # MAR Strong + Block
             if cov is None:
                 cov = generate_random_cov(d)
             mean = np.zeros(d)
@@ -229,7 +208,7 @@ def MAR_mask(X: np.ndarray,
                 mask[:, j] = ps.flatten()
             
         else:
-            #print("MAR Strong + Sequential")
+            # MAR Strong + Sequential
             for j in idxs_nas:
                 inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], self_mask=False, mask_component=(mask[:, :j]), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -249,7 +228,8 @@ def MNAR_mask_logistic(
     cov: float=None,
     coeff_dist: str = "uniform",
     coeff_arg0: float = 0.0,
-    coeff_arg1: float = 1.0
+    coeff_arg1: float = 1.0,
+    idxs_obs: np.ndarray = None
     ) -> np.ndarray:
 
     """
@@ -278,12 +258,13 @@ def MNAR_mask_logistic(
     d_obs = max(int(p_obs * d), 1) if exclude_inputs else d
     d_na = (d - d_obs if exclude_inputs else d)
 
-    idxs_obs = (np.random.choice(d, d_obs, replace=False)) if exclude_inputs else np.arange(d) # randomly generate indexes of variables with have no missing values
+    if idxs_obs is None:
+        idxs_obs = (np.random.choice(d, d_obs, replace=False)) if exclude_inputs else np.arange(d) # randomly generate indexes of variables with have no missing values
     idxs_nas = (np.setdiff1d(np.arange(d), idxs_obs)) if exclude_inputs else np.arange(d) # indexes of variables that will have missing values
 
     if structured == False:
         if weak:
-            #print("MNAR Probabilistic")
+            # MNAR Probabilistic 
             for j in idxs_nas:
                 inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -291,7 +272,7 @@ def MNAR_mask_logistic(
                 ber = np.random.rand(n, 1)
                 mask[:, j] = (ber < ps).flatten()
         else: 
-            #print("MNAR Deterministic")
+            # MNAR Deterministic 
             for j in idxs_nas:
                 inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -303,7 +284,7 @@ def MNAR_mask_logistic(
     else:
 
         if weak and not sequential:
-            #print("MNAR Weak + Block")
+            # MNAR Weak + Block 
             if cov is None:
                 cov = generate_random_cov(d)
             mean = np.zeros(d)
@@ -319,7 +300,7 @@ def MNAR_mask_logistic(
                 mask[:, j] = (ber < ps).flatten()
 
         elif weak and sequential: 
-            #print("MNAR Weak + Sequential")
+            # MNAR Weak + Sequential 
             for j in np.arange(d): 
                 if j in idxs_nas: # this is always true for exclude_inputs = False
                     inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], self_mask=False, mask_component=mask[:, :j], coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
@@ -331,7 +312,7 @@ def MNAR_mask_logistic(
                 mask[:, j] = (ber < ps).flatten()
 
         elif not weak and not sequential: 
-            #print("MNAR Strong + Block")
+            # MNAR Strong + Block 
             if cov is None:
                 cov = generate_random_cov(d)
             mean = np.zeros(d)
@@ -346,7 +327,7 @@ def MNAR_mask_logistic(
                 mask[:, j] = ps.flatten()
             
         else:
-            #print("MNAR Strong + Sequential")
+            # MNAR Strong + Sequential 
             for j in np.arange(d): 
                 if j == 0 and j not in idxs_nas:
                     mask[:, j] = np.random.rand(mask.shape[0]) < p_miss
@@ -373,12 +354,13 @@ def simulate_nan(X: np.ndarray,
                  cov: float=None,
                  coeff_dist: str = "normal",
                  coeff_arg0: float = 0.0,
-                 coeff_arg1: float = 1.0
+                 coeff_arg1: float = 1.0,
+                 idxs_obs: np.ndarray = None
                  ) -> np.ndarray:
     if mecha == "MAR":
-        mask, cov = MAR_mask(X, p_miss, structured, weak, sequential, p_obs, cov, coeff_dist, coeff_arg0, coeff_arg1)
+        mask, cov = MAR_mask(X, p_miss, structured, weak, sequential, p_obs, cov, coeff_dist, coeff_arg0, coeff_arg1, idxs_obs)
     elif mecha == "MNAR" and opt == "logistic":
-        mask, cov = MNAR_mask_logistic(X, p_miss, structured, weak, sequential, p_obs, exclude_inputs, cov, coeff_dist, coeff_arg0, coeff_arg1)
+        mask, cov = MNAR_mask_logistic(X, p_miss, structured, weak, sequential, p_obs, exclude_inputs, cov, coeff_dist, coeff_arg0, coeff_arg1, idxs_obs)
     else:
         mask, cov = MCAR_mask(X, p_miss, structured, weak, sequential, cov, coeff_dist, coeff_arg0, coeff_arg1)
     X_nas = X.copy()
