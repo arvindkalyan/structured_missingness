@@ -1,21 +1,9 @@
 import numpy as np
 
-def block_assignment(length, num_blocks):
-    q, r = divmod(length, num_blocks)
-    # Create block sizes: first r blocks get an extra item
-    block_sizes = np.array([q + 1] * r + [q] * (num_blocks - r))
-    block_assignments = np.repeat(np.arange(num_blocks), block_sizes)
-
-    block_start_indices = np.insert(np.cumsum(block_sizes[:-1]), 0, 0)
-    block_indices = np.arange(length) - block_start_indices[block_assignments]
-
-    return block_assignments, block_indices
-
 def normalize(data, coeffs, tol=1e-10):
     std = np.std(data@coeffs, axis=0, keepdims=True)
-    # std[np.isclose(std, 0.0, atol=tol)] = 1.0 # TODO: Quantify effects of doing 
+    std[np.isclose(std, 0.0, atol=tol)] = 1.0 # TODO: Quantify effects of doing 
     return coeffs / std
-
 
 def generate_random_cov(n):
     A = np.random.randn(n, n)

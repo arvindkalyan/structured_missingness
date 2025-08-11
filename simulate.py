@@ -7,7 +7,6 @@ from scipy import optimize
 from scipy.special import expit
 
 # utils
-from sim_utils import block_assignment
 from sim_utils import normalize
 from sim_utils import generate_coeffs
 from sim_utils import round_near_zero
@@ -143,7 +142,7 @@ def MAR_mask(X: np.ndarray,
               coeff_arg0: float = 0.0,
               coeff_arg1: float = 1.0,
               idxs_obs: np.ndarray = None) -> np.ndarray:
-    
+    #TODO: CHANGE THE SIZE OF LATENTS HERE!!
     n, d = X.shape
     mask = np.zeros((n, d)).astype(bool)
 
@@ -176,11 +175,11 @@ def MAR_mask(X: np.ndarray,
         if weak and not sequential:
             # MAR Weak + Block 
             if cov is None:
-                cov = generate_random_cov(d)
-            mean = np.zeros(d)
+                cov = generate_random_cov(d_na)
+            mean = np.zeros(d_na)
             latent_effects = np.random.multivariate_normal(mean, cov, size=n)
-            for j in idxs_nas:
-                inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], self_mask=False, latent_component=latent_effects[:, j].reshape(-1, 1), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
+            for col_idx, j in enumerate(idxs_nas):
+                inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], self_mask=False, latent_component=latent_effects[:, col_idx].reshape(-1, 1), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
                 ps = expit(inputs_and_coeffs + intercepts)
                 ber = np.random.rand(n, 1)
@@ -198,11 +197,11 @@ def MAR_mask(X: np.ndarray,
         elif not weak and not sequential:
             # MAR Strong + Block
             if cov is None:
-                cov = generate_random_cov(d)
-            mean = np.zeros(d)
+                cov = generate_random_cov(d_na)
+            mean = np.zeros(d_na)
             latent_effects = np.random.multivariate_normal(mean, cov, size=n)
-            for j in idxs_nas:
-                inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], self_mask=False, latent_component=(latent_effects[:, j].reshape(-1, 1)), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
+            for col_idx, j in enumerate(idxs_nas):
+                inputs_and_coeffs = pick_coeffs(X, idxs_obs, [j], self_mask=False, latent_component=(latent_effects[:, col_idx].reshape(-1, 1)), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
                 ps = round_near_zero(inputs_and_coeffs + intercepts) >= 0
                 mask[:, j] = ps.flatten()
