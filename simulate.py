@@ -322,7 +322,7 @@ def MNAR_mask_logistic(
                 mask[:, j] = ps.flatten()
         
         if exclude_inputs:
-            mask[:, idxs_obs] = np.random.rand(n, d_obs) < p_miss
+            mask[:, idxs_obs] = np.random.rand(n, len(idxs_obs)) < p_miss
     else:
 
         if weak and not sequential:
