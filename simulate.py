@@ -7,10 +7,10 @@ from scipy import optimize
 from scipy.special import expit
 
 # utils
-from .sim_utils import normalize
-from .sim_utils import generate_coeffs
-from .sim_utils import round_near_zero
-from .sim_utils import generate_random_cov
+from sim_utils import normalize
+from sim_utils import generate_coeffs
+from sim_utils import round_near_zero
+from sim_utils import generate_random_cov
 
 def pick_coeffs(
     X: np.ndarray,
