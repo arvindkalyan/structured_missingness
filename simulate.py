@@ -124,7 +124,6 @@ def MCAR_mask(X: np.ndarray,
                 if j == 0:
                     mask[:, j] = np.random.rand(mask.shape[0]) < p_miss
                 else:              
-                    # inputs_and_coeffs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], latent_component=(mask[:, :j]), self_mask=False, coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1) 
                     inputs_and_coeffs = pick_coeffs(X=None, idxs_obs=[], idxs_nas=[j], mask_component=(mask[:, :j]), self_mask=False, coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)   
                     intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
                     ps = round_near_zero(inputs_and_coeffs + intercepts) >= 0
@@ -365,5 +364,3 @@ def simulate_nan(X: np.ndarray,
     X_nas = X.copy()
     X_nas[mask.astype(bool)] = np.nan
     return {'X_init': X.astype(np.float64), 'X_incomp': X_nas.astype(np.float64), 'mask': mask, 'cov': cov}
-
-#np.random.seed(0)
