@@ -141,8 +141,8 @@ X_miss_mar_WSS = simulate_nan(X_complete_cont, p_miss=0.2, mecha="MAR", structur
 X_miss_mnar_SSB = simulate_nan(X_complete_cont, p_miss=0.5, mecha="MNAR", structured="True", weak="False", sequential="False", idxs_obs=[1, 3]) 
 
 # 40% missingness, MCAR-WS Block, manually-specified covariance matrix
-cov = np.array([[1,0.4,-0.8,0.05],
-                [0.4,1,0.2,-0.5],
+cov = np.array([[1,-0.4,-0.8,0.05],
+                [-0.4,1,0.2,-0.5],
                 [-0.8,0.2,1,0.3],
                 [0.05,-0.5,0.3,1]])
 X_miss_mcar_WSB = simulate_nan(X_complete_cont, p_miss=0.4, mecha="MCAR", structured="True", weak="True", sequential="False", cov=cov) 
