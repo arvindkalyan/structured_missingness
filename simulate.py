@@ -280,11 +280,11 @@ def MAR_mask(X: np.ndarray,
         if weak and not sequential:
             # MAR Weak + Block 
             if cov is None:
-                cov = generate_random_cov(d, rng)
-            mean = np.zeros(d)
+                cov = generate_random_cov(d_na, rng)
+            mean = np.zeros(d_na)
             latent_effects = rng.multivariate_normal(mean, cov, size=n)
-            for j in idxs_nas:
-                inputs_and_coeffs = pick_coeffs(X, rng, idxs_obs, [j], self_mask=False, latent_component=latent_effects[:, j].reshape(-1, 1), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
+            for i, j in enumerate(idxs_nas):
+                inputs_and_coeffs = pick_coeffs(X, rng, idxs_obs, [j], self_mask=False, latent_component=latent_effects[:, i].reshape(-1, 1), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
                 ps = expit(inputs_and_coeffs + intercepts)
                 ber = rng.random((n, 1))
@@ -302,11 +302,11 @@ def MAR_mask(X: np.ndarray,
         elif not weak and not sequential:
             # MAR Strong + Block
             if cov is None:
-                cov = generate_random_cov(d, rng)
-            mean = np.zeros(d)
+                cov = generate_random_cov(d_na, rng)
+            mean = np.zeros(d_na)
             latent_effects = rng.multivariate_normal(mean, cov, size=n)
-            for j in idxs_nas:
-                inputs_and_coeffs = pick_coeffs(X, rng, idxs_obs, [j], self_mask=False, latent_component=(latent_effects[:, j].reshape(-1, 1)), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
+            for i, j in enumerate(idxs_nas):
+                inputs_and_coeffs = pick_coeffs(X, rng, idxs_obs, [j], self_mask=False, latent_component=(latent_effects[:, i].reshape(-1, 1)), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
                 ps = round_near_zero(inputs_and_coeffs + intercepts) >= 0
                 mask[:, j] = ps.flatten()
