@@ -75,6 +75,7 @@ def MCAR_mask(X: np.ndarray,
               weak: bool=True,
               sequential: bool=False,
               cov: float=None,
+              effect_strength: float=None,
               coeff_dist: str = "uniform",
               coeff_arg0: float = 0.0,
               coeff_arg1: float = 1.0,
@@ -141,8 +142,10 @@ def MCAR_mask(X: np.ndarray,
             # MCAR Weak + Block 
             if cov is None:
                 cov = generate_random_cov(d, rng)
+            if effect_strength is None:
+                effect_strength = rng.uniform(1, 2)
             mean = np.zeros(d)
-            latent_effects = rng.multivariate_normal(mean, cov, size=n)
+            latent_effects = rng.multivariate_normal(mean, cov, size=n)*effect_strength
             for j in np.arange(d):
                 inputs_and_coeffs = pick_coeffs(X=None, rng=rng, idxs_obs = None, idxs_nas=[j], latent_component=latent_effects[:,j].reshape(-1, 1), self_mask=False, coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -163,8 +166,10 @@ def MCAR_mask(X: np.ndarray,
             # MCAR Strong + Block 
             if cov is None:
                 cov = generate_random_cov(d, rng)
+            if effect_strength is None:
+                effect_strength = rng.uniform(1, 2)
             mean = np.zeros(d)
-            latent_effects = rng.multivariate_normal(mean, cov, size=n)
+            latent_effects = rng.multivariate_normal(mean, cov, size=n)*effect_strength
             for j in np.arange(d):
                 inputs_and_coeffs = pick_coeffs(X=None, rng=rng, idxs_obs=[], idxs_nas=[j], latent_component=latent_effects[:,j].reshape(-1, 1), self_mask=False, coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -190,6 +195,7 @@ def MAR_mask(X: np.ndarray,
               sequential: bool=False,
               p_obs: float=0.5,
               cov: float=None,
+              effect_strength: float=None,
               coeff_dist: str = "uniform",
               coeff_arg0: float = 0.0,
               coeff_arg1: float = 1.0,
@@ -281,8 +287,10 @@ def MAR_mask(X: np.ndarray,
             # MAR Weak + Block 
             if cov is None:
                 cov = generate_random_cov(d_na, rng)
+            if effect_strength is None:
+                effect_strength = rng.uniform(1, 2)
             mean = np.zeros(d_na)
-            latent_effects = rng.multivariate_normal(mean, cov, size=n)
+            latent_effects = rng.multivariate_normal(mean, cov, size=n)*effect_strength
             for i, j in enumerate(idxs_nas):
                 inputs_and_coeffs = pick_coeffs(X, rng, idxs_obs, [j], self_mask=False, latent_component=latent_effects[:, i].reshape(-1, 1), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -303,8 +311,10 @@ def MAR_mask(X: np.ndarray,
             # MAR Strong + Block
             if cov is None:
                 cov = generate_random_cov(d_na, rng)
+            if effect_strength is None:
+                effect_strength = rng.uniform(1, 2)
             mean = np.zeros(d_na)
-            latent_effects = rng.multivariate_normal(mean, cov, size=n)
+            latent_effects = rng.multivariate_normal(mean, cov, size=n)*effect_strength
             for i, j in enumerate(idxs_nas):
                 inputs_and_coeffs = pick_coeffs(X, rng, idxs_obs, [j], self_mask=False, latent_component=(latent_effects[:, i].reshape(-1, 1)), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
@@ -318,7 +328,6 @@ def MAR_mask(X: np.ndarray,
                 intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
                 ps = round_near_zero(inputs_and_coeffs + intercepts) >= 0
                 mask[:, j] = ps.flatten()
-                
     return mask.astype(float), cov
 
 def MNAR_mask_logistic(
@@ -330,6 +339,7 @@ def MNAR_mask_logistic(
     p_obs: float = 0.3,
     exclude_inputs: bool = True,
     cov: float=None,
+    effect_strength: float=None,
     coeff_dist: str = "uniform",
     coeff_arg0: float = 0.0,
     coeff_arg1: float = 1.0,
@@ -430,8 +440,10 @@ def MNAR_mask_logistic(
             # MNAR Weak + Block 
             if cov is None:
                 cov = generate_random_cov(d, rng)
+            if effect_strength is None:
+                effect_strength = rng.uniform(1, 2)
             mean = np.zeros(d)
-            latent_effects = rng.multivariate_normal(mean, cov, size=n)
+            latent_effects = rng.multivariate_normal(mean, cov, size=n)*effect_strength
             for j in np.arange(d): 
                 if j in idxs_nas: # this is always true for exclude_inputs = False
                     inputs_and_coeffs = pick_coeffs(X,rng, idxs_obs, [j], self_mask=False, latent_component=latent_effects[:,j].reshape(-1, 1), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
@@ -458,8 +470,10 @@ def MNAR_mask_logistic(
             # MNAR Strong + Block 
             if cov is None:
                 cov = generate_random_cov(d, rng)
+            if effect_strength is None:
+                effect_strength = rng.uniform(1, 2)
             mean = np.zeros(d)
-            latent_effects = rng.multivariate_normal(mean, cov, size=n)
+            latent_effects = rng.multivariate_normal(mean, cov, size=n)*effect_strength
             for j in np.arange(d): 
                 if j in idxs_nas: # this is always true for exclude_inputs = False
                     inputs_and_coeffs = pick_coeffs(X, rng,idxs_obs, [j], self_mask=False, latent_component=(latent_effects[:, j].reshape(-1, 1)), coeff_dist=coeff_dist, coeff_arg0=coeff_arg0, coeff_arg1=coeff_arg1)
@@ -482,7 +496,6 @@ def MNAR_mask_logistic(
                     intercepts = fit_intercepts(inputs_and_coeffs, p_miss, weak)
                     ps = round_near_zero(inputs_and_coeffs + intercepts) >= 0
                     mask[:, j] = ps.flatten()
-
     return mask, cov
 
 def simulate_nan(X: np.ndarray,
@@ -494,6 +507,7 @@ def simulate_nan(X: np.ndarray,
                  p_obs: float=0.5,
                  exclude_inputs: bool=True,
                  cov: float=None,
+                 effect_strength: float=None,
                  coeff_dist: str = "normal",
                  coeff_arg0: float = 0.0,
                  coeff_arg1: float = 1.0,
@@ -592,11 +606,11 @@ def simulate_nan(X: np.ndarray,
     rng = np.random.default_rng(seed)
 
     if mecha == "MAR":
-        mask, cov = MAR_mask(X, p_miss, structured, weak, sequential, p_obs, cov, coeff_dist, coeff_arg0, coeff_arg1, idxs_obs,rng=rng)
+        mask, cov = MAR_mask(X, p_miss, structured, weak, sequential, p_obs, cov, effect_strength, coeff_dist, coeff_arg0, coeff_arg1, idxs_obs,rng=rng)
     elif mecha == "MNAR":
-        mask, cov = MNAR_mask_logistic(X, p_miss, structured, weak, sequential, p_obs, exclude_inputs, cov, coeff_dist, coeff_arg0, coeff_arg1, idxs_obs,rng=rng)
+        mask, cov = MNAR_mask_logistic(X, p_miss, structured, weak, sequential, p_obs, exclude_inputs, cov, effect_strength, coeff_dist, coeff_arg0, coeff_arg1, idxs_obs,rng=rng)
     else:
-        mask, cov = MCAR_mask(X, p_miss, structured, weak, sequential, cov, coeff_dist, coeff_arg0, coeff_arg1,rng=rng)
+        mask, cov = MCAR_mask(X, p_miss, structured, weak, sequential, cov, effect_strength, coeff_dist, coeff_arg0, coeff_arg1,rng=rng)
 
     X_nas = X.copy()
     X_nas[mask.astype(bool)] = np.nan
