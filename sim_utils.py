@@ -6,13 +6,20 @@ def normalize(data, coeffs, tol=1e-10):
     return coeffs / std
 
 def generate_random_cov(n, rng):
-    A = rng.standard_normal((n, n))
-    S = A @ A.T
-    diag_sqrt = np.sqrt(np.diag(S))
-    norm_matrix = np.outer(diag_sqrt, diag_sqrt)
-    correlation_matrix = S / norm_matrix
-    np.fill_diagonal(correlation_matrix, 1.0)
-    return correlation_matrix
+    """
+    C-vine method: r[i,j] = partial correlation of variable i and j given
+    {0,...,j-1}, sampled from Uniform(-1, 1). Builds Cholesky factor directly.
+    """
+    L = np.zeros((n, n))
+    L[0, 0] = 1.0
+    for i in range(1, n):
+        remaining = 1.0
+        for j in range(i):
+            r = rng.uniform(-1.0, 1.0)
+            L[i, j] = r * np.sqrt(remaining)
+            remaining *= (1.0 - r ** 2)
+        L[i, i] = np.sqrt(remaining)
+    return L @ L.T
 
 def round_near_zero(arr: np.ndarray, tolerance: float = 1e-11) -> np.ndarray:
     if (arr < 0).all():
